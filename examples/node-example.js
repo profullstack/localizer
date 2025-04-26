@@ -1,89 +1,119 @@
 /**
- * Node.js example for @profullstack/localizer
+ * @profullstack/localizer Node.js Example
  * 
- * This example demonstrates how to use the localizer in a Node.js environment.
+ * This example demonstrates how to use the @profullstack/localizer package in a Node.js environment.
  */
 
-// In a real application, you would import from your package
-// const { Localizer, _t } = require('@profullstack/localizer');
+// Import the localizer
+const { localizer, _t } = require('@profullstack/localizer');
 
-// For this example, we'll assume the package is built and available locally
-const { Localizer, _t } = require('../dist/index.js');
-const fs = require('fs');
-const path = require('path');
-
-// Create a new instance (not using the singleton for this example)
-const localizer = new Localizer({
-  defaultLanguage: 'en',
-  fallbackLanguage: 'en'
-});
-
-// Function to load translations from JSON files
-function loadTranslationsFromFile(language, filePath) {
-  try {
-    const data = fs.readFileSync(filePath, 'utf8');
-    const translations = JSON.parse(data);
-    localizer.loadTranslations(language, translations);
-    console.log(`Loaded translations for ${language}`);
-  } catch (error) {
-    console.error(`Error loading translations for ${language}:`, error.message);
-  }
+// Flatten a nested object into a flat object with dot notation keys
+function flattenObject(obj, prefix = '') {
+  return Object.keys(obj).reduce((acc, key) => {
+    const prefixedKey = prefix ? `${prefix}.${key}` : key;
+    
+    if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+      Object.assign(acc, flattenObject(obj[key], prefixedKey));
+    } else {
+      acc[prefixedKey] = obj[key];
+    }
+    
+    return acc;
+  }, {});
 }
 
-// Load translations
-const i18nDir = path.join(__dirname, 'i18n');
-loadTranslationsFromFile('en', path.join(i18nDir, 'en.json'));
-loadTranslationsFromFile('fr', path.join(i18nDir, 'fr.json'));
-loadTranslationsFromFile('de', path.join(i18nDir, 'de.json'));
+// Define translations
+const translations = {
+  en: {
+    greeting: 'Hello',
+    farewell: 'Goodbye',
+    welcome: 'Welcome, ${name}!',
+    items_one: 'You have ${count} item in your cart.',
+    items_other: 'You have ${count} items in your cart.',
+    nested: {
+      key1: 'Nested key 1',
+      key2: 'Nested key 2',
+      deeper: {
+        key3: 'Deeply nested key'
+      }
+    }
+  },
+  fr: {
+    greeting: 'Bonjour',
+    farewell: 'Au revoir',
+    welcome: 'Bienvenue, ${name}!',
+    items_one: 'Vous avez ${count} article dans votre panier.',
+    items_other: 'Vous avez ${count} articles dans votre panier.',
+    nested: {
+      key1: 'Clé imbriquée 1',
+      key2: 'Clé imbriquée 2',
+      deeper: {
+        key3: 'Clé profondément imbriquée'
+      }
+    }
+  },
+  de: {
+    greeting: 'Hallo',
+    farewell: 'Auf Wiedersehen',
+    welcome: 'Willkommen, ${name}!',
+    items_one: 'Sie haben ${count} Artikel in Ihrem Warenkorb.',
+    items_other: 'Sie haben ${count} Artikel in Ihrem Warenkorb.',
+    nested: {
+      key1: 'Verschachtelte Taste 1',
+      key2: 'Verschachtelte Taste 2',
+      deeper: {
+        key3: 'Tief verschachtelte Taste'
+      }
+    }
+  }
+};
+
+// Load translations (flattening nested objects)
+Object.keys(translations).forEach(lang => {
+  const flattenedTranslations = flattenObject(translations[lang]);
+  localizer.loadTranslations(lang, flattenedTranslations);
+  console.log(`Loaded translations for ${lang}`);
+});
 
 // Function to demonstrate translations
 function demonstrateTranslations(language) {
-  console.log('\n' + '='.repeat(50));
+  console.log(`\n--- ${language.toUpperCase()} ---`);
+  
+  // Set the language
   localizer.setLanguage(language);
-  console.log(`Current language: ${localizer.getLanguage()} (${_t('language')})`);
-  console.log('='.repeat(50));
   
   // Basic translations
-  console.log('\nBasic Translations:');
-  console.log(`_t('hello') => ${_t('hello')}`);
-  console.log(`_t('welcome') => ${_t('welcome')}`);
+  console.log(`Greeting: ${_t('greeting')}`);
+  console.log(`Farewell: ${_t('farewell')}`);
   
   // Interpolation
-  console.log('\nInterpolation:');
-  console.log(`_t('greeting', { name: 'John' }) => ${_t('greeting', { name: 'John' })}`);
-  console.log(`_t('order_total', { total: '$42.99' }) => ${_t('order_total', { total: '$42.99' })}`);
+  console.log(`Welcome: ${_t('welcome', { name: 'John' })}`);
   
   // Pluralization
-  console.log('\nPluralization:');
-  console.log(`_t('items', { count: 0 }) => ${_t('items', { count: 0 })}`);
-  console.log(`_t('items', { count: 1 }) => ${_t('items', { count: 1 })}`);
-  console.log(`_t('items', { count: 5 }) => ${_t('items', { count: 5 })}`);
+  console.log(`Items (1): ${_t('items', { count: 1 })}`);
+  console.log(`Items (5): ${_t('items', { count: 5 })}`);
   
-  // Form elements
-  console.log('\nForm Elements:');
-  console.log(`_t('username') => ${_t('username')}`);
-  console.log(`_t('password') => ${_t('password')}`);
-  console.log(`_t('submit') => ${_t('submit')}`);
-  console.log(`_t('cancel') => ${_t('cancel')}`);
+  // Nested keys
+  console.log(`Nested key 1: ${_t('nested.key1')}`);
+  console.log(`Nested key 2: ${_t('nested.key2')}`);
+  console.log(`Deeply nested key: ${_t('nested.deeper.key3')}`);
+  
+  // Missing key (falls back to the key itself)
+  console.log(`Missing key: ${_t('missing.key')}`);
 }
 
 // Demonstrate translations for each language
-console.log('LOCALIZER NODE.JS EXAMPLE');
-console.log('========================\n');
+['en', 'fr', 'de'].forEach(demonstrateTranslations);
 
-demonstrateTranslations('en');
-demonstrateTranslations('fr');
-demonstrateTranslations('de');
+// Show available languages
+console.log(`\nAvailable languages: ${localizer.getAvailableLanguages().join(', ')}`);
 
-// Example of fallback behavior
-console.log('\n' + '='.repeat(50));
-console.log('Fallback Behavior:');
-console.log('='.repeat(50));
+// Example of changing language programmatically
+console.log('\nChanging language to French...');
+localizer.setLanguage('fr');
+console.log(`Current language: ${localizer.getLanguage()}`);
+console.log(`Greeting in French: ${_t('greeting')}`);
 
-// Try to set a language that doesn't exist
-localizer.setLanguage('es');
-console.log(`After setting to 'es', current language: ${localizer.getLanguage()}`);
-console.log(`_t('hello') => ${_t('hello')}`);
-
-// Try a key that doesn't exist
-console.log(`_t('non_existent_key') => ${_t('non_existent_key')}`);
+// Example of overriding the current language
+console.log('\nOverriding language for a specific translation:');
+console.log(`Greeting in German (while French is active): ${_t('greeting', { language: 'de' })}`);
