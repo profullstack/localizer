@@ -10,6 +10,7 @@ export interface LocalizerOptions {
   translations?: Record<string, Record<string, string>>;
   interpolationStart?: string;
   interpolationEnd?: string;
+  rtlLanguages?: string[];
 }
 
 export interface TranslationOptions {
@@ -24,7 +25,8 @@ const DEFAULT_OPTIONS: LocalizerOptions = {
   fallbackLanguage: 'en',
   translations: {},
   interpolationStart: '${',
-  interpolationEnd: '}'
+  interpolationEnd: '}',
+  rtlLanguages: ['ar', 'he', 'fa', 'ur']
 };
 
 class Localizer {
@@ -57,12 +59,43 @@ class Localizer {
    * @param language The language code to set
    */
   public setLanguage(language: string): void {
+    const previousLanguage = this.currentLanguage;
+    
     if (this.options.translations[language] || language === this.options.fallbackLanguage) {
       this.currentLanguage = language;
     } else {
       console.warn(`Language '${language}' not loaded, using fallback language '${this.options.fallbackLanguage}'`);
       this.currentLanguage = this.options.fallbackLanguage;
     }
+    
+    // Dispatch language change event if running in browser environment
+    if (typeof window !== 'undefined' && previousLanguage !== this.currentLanguage) {
+      const isRTL = this.isRTL();
+      window.dispatchEvent(new CustomEvent('language-changed', {
+        detail: {
+          language: this.currentLanguage,
+          previousLanguage,
+          isRTL
+        }
+      }));
+    }
+  }
+  
+  /**
+   * Check if the current language is RTL (Right-to-Left)
+   * @returns True if the current language is RTL
+   */
+  public isRTL(): boolean {
+    return this.options.rtlLanguages?.includes(this.currentLanguage) || false;
+  }
+  
+  /**
+   * Check if a specific language is RTL (Right-to-Left)
+   * @param language The language code to check
+   * @returns True if the language is RTL
+   */
+  public isLanguageRTL(language: string): boolean {
+    return this.options.rtlLanguages?.includes(language) || false;
   }
 
   /**

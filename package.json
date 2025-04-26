@@ -1,7 +1,7 @@
 {
   "name": "@profullstack/localizer",
-  "version": "0.2.0",
-  "description": "Simple localization and internationalization library",
+  "version": "0.3.0",
+  "description": "Simple localization and internationalization library with RTL support",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -25,7 +25,10 @@
     "l10n",
     "localization",
     "internationalization",
-    "translation"
+    "translation",
+    "rtl",
+    "right-to-left",
+    "arabic"
   ],
   "author": "ProFullStack",
   "license": "MIT",

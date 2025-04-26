@@ -1,28 +1,23 @@
 # @profullstack/localizer
 
-A simple and lightweight internationalization (i18n) and localization (l10n) library for JavaScript applications.
+A simple localization and internationalization library with RTL support.
 
 ## Features
 
 - Simple API for translating text
-- Support for multiple languages
-- Fallback to default language when a translation is missing
+- Support for multiple languages with fallback
 - Interpolation of variables in translations
 - Support for pluralization
+- Right-to-Left (RTL) language support
 - Works in both browser and Node.js environments
-- No dependencies
-- Tiny footprint (~2KB minified and gzipped)
 
 ## Installation
 
 ```bash
-# Using npm
 npm install @profullstack/localizer
-
-# Using yarn
+# or
 yarn add @profullstack/localizer
-
-# Using pnpm
+# or
 pnpm add @profullstack/localizer
 ```
 
@@ -35,176 +30,114 @@ import { localizer, _t } from '@profullstack/localizer';
 
 // Load translations
 localizer.loadTranslations('en', {
-  'greeting': 'Hello',
-  'farewell': 'Goodbye'
+  'hello': 'Hello',
+  'welcome': 'Welcome, ${name}!'
 });
 
 localizer.loadTranslations('fr', {
-  'greeting': 'Bonjour',
-  'farewell': 'Au revoir'
+  'hello': 'Bonjour',
+  'welcome': 'Bienvenue, ${name}!'
+});
+
+localizer.loadTranslations('ar', {
+  'hello': 'مرحبا',
+  'welcome': 'مرحبًا، ${name}!'
 });
 
 // Set the current language
-localizer.setLanguage('en');
-
-// Translate text
-console.log(_t('greeting')); // Output: Hello
-
-// Change language
 localizer.setLanguage('fr');
-console.log(_t('greeting')); // Output: Bonjour
+
+// Translate a key
+console.log(_t('hello')); // Output: Bonjour
+
+// Translate with interpolation
+console.log(_t('welcome', { name: 'John' })); // Output: Bienvenue, John!
 ```
 
-### Nested Translations
+### RTL Support
 
-The library supports nested translation objects, but they need to be flattened before loading:
+The library automatically detects Right-to-Left (RTL) languages and provides methods to check if a language is RTL:
 
 ```javascript
-// Nested translations
-const enTranslations = {
-  'navigation': {
-    'home': 'Home',
-    'about': 'About',
-    'contact': 'Contact'
-  },
-  'errors': {
-    'not_found': 'Page not found'
+// Check if the current language is RTL
+const isRTL = localizer.isRTL();
+
+// Check if a specific language is RTL
+const isArabicRTL = localizer.isLanguageRTL('ar'); // true
+const isEnglishRTL = localizer.isLanguageRTL('en'); // false
+
+// The library dispatches an event when the language changes
+window.addEventListener('language-changed', (event) => {
+  const { language, previousLanguage, isRTL } = event.detail;
+  
+  // Apply RTL styles if needed
+  document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+  
+  if (isRTL) {
+    document.body.classList.add('rtl');
+  } else {
+    document.body.classList.remove('rtl');
   }
-};
-
-// Flatten the translations
-function flattenObject(obj, prefix = '') {
-  return Object.keys(obj).reduce((acc, key) => {
-    const prefixedKey = prefix ? `${prefix}.${key}` : key;
-    
-    if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-      Object.assign(acc, flattenObject(obj[key], prefixedKey));
-    } else {
-      acc[prefixedKey] = obj[key];
-    }
-    
-    return acc;
-  }, {});
-}
-
-// Load the flattened translations
-localizer.loadTranslations('en', flattenObject(enTranslations));
-
-// Use the flattened keys
-console.log(_t('navigation.home')); // Output: Home
-console.log(_t('errors.not_found')); // Output: Page not found
-```
-
-### Interpolation
-
-You can include variables in your translations using the `${variable}` syntax:
-
-```javascript
-// Load translations with variables
-localizer.loadTranslations('en', {
-  'welcome': 'Welcome, ${name}!',
-  'items_count': 'You have ${count} items in your cart.'
 });
-
-// Translate with variables
-console.log(_t('welcome', { name: 'John' })); // Output: Welcome, John!
-console.log(_t('items_count', { count: 5 })); // Output: You have 5 items in your cart.
-```
-
-### Pluralization
-
-You can handle pluralization by using the `count` parameter and defining separate translations for singular and plural forms:
-
-```javascript
-// Load translations with pluralization
-localizer.loadTranslations('en', {
-  'items_one': 'You have ${count} item in your cart.',
-  'items_other': 'You have ${count} items in your cart.'
-});
-
-// Translate with pluralization
-console.log(_t('items', { count: 1 })); // Output: You have 1 item in your cart.
-console.log(_t('items', { count: 5 })); // Output: You have 5 items in your cart.
 ```
 
 ### Loading Translations from JSON Files
 
-In a browser environment, you can load translations from JSON files:
-
 ```javascript
-// Load translations from JSON files
-async function initI18n() {
+// In a browser environment
+async function loadTranslations() {
   await localizer.loadTranslationsFromUrl('en', '/i18n/en.json');
   await localizer.loadTranslationsFromUrl('fr', '/i18n/fr.json');
+  await localizer.loadTranslationsFromUrl('ar', '/i18n/ar.json');
   
   // Set initial language based on browser preference
   const browserLang = navigator.language.split('-')[0];
-  if (['en', 'fr'].includes(browserLang)) {
+  if (localizer.getAvailableLanguages().includes(browserLang)) {
     localizer.setLanguage(browserLang);
   } else {
-    localizer.setLanguage('en'); // Default language
+    localizer.setLanguage('en'); // fallback
   }
 }
-
-// Initialize i18n
-initI18n();
-```
-
-### HTML Integration
-
-You can use data attributes to translate HTML elements:
-
-```html
-<span data-i18n="greeting"></span>
-<span data-i18n="welcome" data-i18n-params='{"name":"John"}'></span>
-```
-
-```javascript
-// Translate all elements with data-i18n attribute
-function translatePage() {
-  document.querySelectorAll('[data-i18n]').forEach(element => {
-    const key = element.getAttribute('data-i18n');
-    
-    // Check for params
-    const paramsAttr = element.getAttribute('data-i18n-params');
-    if (paramsAttr) {
-      const params = JSON.parse(paramsAttr);
-      element.textContent = _t(key, params);
-    } else {
-      element.textContent = _t(key);
-    }
-  });
-}
-
-// Call translatePage() after loading translations and when language changes
 ```
 
 ## API Reference
 
-### localizer
+### Localizer Class
 
-The main object that provides the localization functionality.
+#### Constructor
+
+```javascript
+const localizer = new Localizer(options);
+```
+
+Options:
+- `defaultLanguage`: The default language to use (default: 'en')
+- `fallbackLanguage`: The fallback language to use when a translation is not found (default: 'en')
+- `translations`: Initial translations object (default: {})
+- `interpolationStart`: The start delimiter for interpolation (default: '${')
+- `interpolationEnd`: The end delimiter for interpolation (default: '}')
+- `rtlLanguages`: Array of RTL language codes (default: ['ar', 'he', 'fa', 'ur'])
 
 #### Methods
 
 - `loadTranslations(language, translations)`: Load translations for a language
-- `loadTranslationsFromUrl(language, url)`: Load translations from a JSON file (browser only)
 - `setLanguage(language)`: Set the current language
 - `getLanguage()`: Get the current language
-- `getAvailableLanguages()`: Get an array of available languages
-- `translate(key, options)`: Translate a key with options
+- `getAvailableLanguages()`: Get an array of available language codes
+- `translate(key, options)`: Translate a key with optional interpolation and pluralization
+- `loadTranslationsFromUrl(language, url)`: Load translations from a JSON file (browser only)
+- `isRTL()`: Check if the current language is RTL
+- `isLanguageRTL(language)`: Check if a specific language is RTL
 
-### _t(key, options)
+### Translation Function
 
-A shorthand function for `localizer.translate(key, options)`.
+```javascript
+_t(key, options);
+```
 
-#### Parameters
-
+Parameters:
 - `key`: The translation key
-- `options`: An object with options:
-  - `count`: For pluralization
-  - `language`: Override the current language
-  - Any other variables for interpolation
+- `options`: Options for translation (interpolation values, count for pluralization, etc.)
 
 ## License
 
