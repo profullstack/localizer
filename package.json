@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/localizer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Simple localization and internationalization library",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
