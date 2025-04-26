@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Localizer Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .language-selector {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 8px 12px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    .example {
+      margin-bottom: 10px;
+    }
+    .code {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 3px;
+      font-family: monospace;
+      margin-bottom: 5px;
+    }
+    .result {
+      padding: 10px;
+      border-left: 3px solid #4CAF50;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Localizer Example</h1>
+  
+  <div class="language-selector">
+    <h3 id="current-language"></h3>
+    <button id="en-btn">English</button>
+    <button id="fr-btn">Français</button>
+    <button id="de-btn">Deutsch</button>
+  </div>
+  
+  <div class="container">
+    <h2>Basic Translation</h2>
+    
+    <div class="example">
+      <div class="code">_t('hello')</div>
+      <div class="result" id="example-hello"></div>
+    </div>
+    
+    <div class="example">
+      <div class="code">_t('welcome')</div>
+      <div class="result" id="example-welcome"></div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <h2>Interpolation</h2>
+    
+    <div class="example">
+      <div class="code">_t('greeting', { name: 'John' })</div>
+      <div class="result" id="example-greeting"></div>
+    </div>
+    
+    <div class="example">
+      <div class="code">_t('order_total', { total: '$42.99' })</div>
+      <div class="result" id="example-order-total"></div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <h2>Pluralization</h2>
+    
+    <div class="example">
+      <div class="code">_t('items', { count: 0 })</div>
+      <div class="result" id="example-items-0"></div>
+    </div>
+    
+    <div class="example">
+      <div class="code">_t('items', { count: 1 })</div>
+      <div class="result" id="example-items-1"></div>
+    </div>
+    
+    <div class="example">
+      <div class="code">_t('items', { count: 5 })</div>
+      <div class="result" id="example-items-5"></div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <h2>Form Elements</h2>
+    
+    <form id="example-form">
+      <div>
+        <label id="label-username"></label>
+        <input type="text" id="input-username">
+      </div>
+      <div style="margin-top: 10px;">
+        <label id="label-password"></label>
+        <input type="password" id="input-password">
+      </div>
+      <div style="margin-top: 20px;">
+        <button type="button" id="btn-submit"></button>
+        <button type="button" id="btn-cancel"></button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Import the library from esm.sh (for browser usage) -->
+  <script type="module">
+    // In a real application, you would import from your package
+    // import { localizer, _t } from '@profullstack/localizer';
+    
+    // For this example, we'll import directly from the ESM build
+    // In a real application, you would use a proper build process
+    import { localizer, _t } from 'https://esm.sh/@profullstack/localizer@0.1.0';
+    
+    // Load translations
+    async function loadTranslations() {
+      await Promise.all([
+        localizer.loadTranslationsFromUrl('en', './i18n/en.json'),
+        localizer.loadTranslationsFromUrl('fr', './i18n/fr.json'),
+        localizer.loadTranslationsFromUrl('de', './i18n/de.json')
+      ]);
+      
+      // Set initial language based on browser preference
+      const browserLang = navigator.language.split('-')[0];
+      if (['en', 'fr', 'de'].includes(browserLang)) {
+        localizer.setLanguage(browserLang);
+      } else {
+        localizer.setLanguage('en');
+      }
+      
+      // Update the UI
+      updateUI();
+    }
+    
+    // Update all translated elements
+    function updateUI() {
+      // Update current language display
+      document.getElementById('current-language').textContent = 
+        _t('current_language', { language: _t('language') });
+      
+      // Basic translations
+      document.getElementById('example-hello').textContent = _t('hello');
+      document.getElementById('example-welcome').textContent = _t('welcome');
+      
+      // Interpolation
+      document.getElementById('example-greeting').textContent = 
+        _t('greeting', { name: 'John' });
+      document.getElementById('example-order-total').textContent = 
+        _t('order_total', { total: '$42.99' });
+      
+      // Pluralization
+      document.getElementById('example-items-0').textContent = 
+        _t('items', { count: 0 });
+      document.getElementById('example-items-1').textContent = 
+        _t('items', { count: 1 });
+      document.getElementById('example-items-5').textContent = 
+        _t('items', { count: 5 });
+      
+      // Form elements
+      document.getElementById('label-username').textContent = _t('username');
+      document.getElementById('label-password').textContent = _t('password');
+      document.getElementById('btn-submit').textContent = _t('submit');
+      document.getElementById('btn-cancel').textContent = _t('cancel');
+    }
+    
+    // Set up language switcher buttons
+    document.getElementById('en-btn').addEventListener('click', () => {
+      localizer.setLanguage('en');
+      updateUI();
+    });
+    
+    document.getElementById('fr-btn').addEventListener('click', () => {
+      localizer.setLanguage('fr');
+      updateUI();
+    });
+    
+    document.getElementById('de-btn').addEventListener('click', () => {
+      localizer.setLanguage('de');
+      updateUI();
+    });
+    
+    // Initialize
+    loadTranslations();
+  </script>
+</body>
+</html>
