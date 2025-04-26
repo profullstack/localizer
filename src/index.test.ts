@@ -1,127 +1,159 @@
+/**
+ * Tests for the @profullstack/localizer package
+ */
+
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Localizer, _t, localizer as defaultLocalizer } from './index';
+import { localizer, _t, Localizer } from './index';
 
 describe('Localizer', () => {
-  let localizer: Localizer;
-
+  // Reset localizer before each test
   beforeEach(() => {
-    // Create a fresh instance for each test
-    localizer = new Localizer({
-      defaultLanguage: 'en',
-      fallbackLanguage: 'en'
+    // Create a new instance to reset state
+    const newLocalizer = new Localizer();
+    Object.assign(localizer, newLocalizer);
+  });
+
+  describe('loadTranslations', () => {
+    it('should load translations for a language', () => {
+      localizer.loadTranslations('en', {
+        'greeting': 'Hello',
+        'farewell': 'Goodbye'
+      });
+
+      expect(localizer.getAvailableLanguages()).toContain('en');
+      expect(_t('greeting')).toBe('Hello');
     });
 
-    // Load some test translations
-    localizer.loadTranslations('en', {
-      'hello': 'Hello',
-      'welcome': 'Welcome to our application',
-      'greeting': 'Hello, ${name}!',
-      'items_zero': 'No items',
-      'items_one': 'One item',
-      'items_other': '${count} items',
-      'order_total': 'Order total: ${total}'
+    it('should merge translations for the same language', () => {
+      localizer.loadTranslations('en', { 'greeting': 'Hello' });
+      localizer.loadTranslations('en', { 'farewell': 'Goodbye' });
+
+      expect(_t('greeting')).toBe('Hello');
+      expect(_t('farewell')).toBe('Goodbye');
     });
 
-    localizer.loadTranslations('fr', {
-      'hello': 'Bonjour',
-      'welcome': 'Bienvenue dans notre application',
-      'greeting': 'Bonjour, ${name} !',
-      'items_zero': 'Aucun élément',
-      'items_one': 'Un élément',
-      'items_other': '${count} éléments',
-      'order_total': 'Total de la commande : ${total}'
+    it('should override existing translations for the same key', () => {
+      localizer.loadTranslations('en', { 'greeting': 'Hello' });
+      localizer.loadTranslations('en', { 'greeting': 'Hi' });
+
+      expect(_t('greeting')).toBe('Hi');
     });
   });
 
-  describe('Basic functionality', () => {
-    it('should set and get the current language', () => {
-      localizer.setLanguage('fr');
-      expect(localizer.getLanguage()).toBe('fr');
-    });
-
-    it('should return available languages', () => {
-      expect(localizer.getAvailableLanguages()).toEqual(['en', 'fr']);
-    });
-
-    it('should translate basic strings', () => {
-      localizer.setLanguage('en');
-      expect(localizer.translate('hello')).toBe('Hello');
-      expect(localizer.translate('welcome')).toBe('Welcome to our application');
-
-      localizer.setLanguage('fr');
-      expect(localizer.translate('hello')).toBe('Bonjour');
-      expect(localizer.translate('welcome')).toBe('Bienvenue dans notre application');
-    });
-
-    it('should fall back to default language if translation not found', () => {
-      localizer.setLanguage('fr');
-      
-      // Add a key only in English
+  describe('setLanguage', () => {
+    beforeEach(() => {
       localizer.loadTranslations('en', {
-        'english_only': 'This is only in English'
+        'greeting': 'Hello',
+        'farewell': 'Goodbye'
       });
       
-      expect(localizer.translate('english_only')).toBe('This is only in English');
+      localizer.loadTranslations('fr', {
+        'greeting': 'Bonjour',
+        'farewell': 'Au revoir'
+      });
     });
 
-    it('should return the key if no translation found', () => {
-      expect(localizer.translate('non_existent_key')).toBe('non_existent_key');
+    it('should set the current language', () => {
+      localizer.setLanguage('fr');
+      expect(localizer.getLanguage()).toBe('fr');
+      expect(_t('greeting')).toBe('Bonjour');
+    });
+
+    it('should use fallback language if the language is not available', () => {
+      localizer.setLanguage('de');
+      expect(localizer.getLanguage()).toBe('en'); // Default fallback
+      expect(_t('greeting')).toBe('Hello');
     });
   });
 
-  describe('Interpolation', () => {
-    it('should interpolate values', () => {
+  describe('translate', () => {
+    beforeEach(() => {
+      localizer.loadTranslations('en', {
+        'greeting': 'Hello',
+        'welcome': 'Welcome, ${name}!',
+        'items_one': 'You have ${count} item.',
+        'items_other': 'You have ${count} items.',
+        'nested.key': 'Nested key'
+      });
+      
+      localizer.loadTranslations('fr', {
+        'greeting': 'Bonjour',
+        'welcome': 'Bienvenue, ${name}!',
+        'items_one': 'Vous avez ${count} article.',
+        'items_other': 'Vous avez ${count} articles.',
+        'nested.key': 'Clé imbriquée'
+      });
+      
       localizer.setLanguage('en');
-      expect(localizer.translate('greeting', { name: 'John' })).toBe('Hello, John!');
-      expect(localizer.translate('order_total', { total: '$42.99' })).toBe('Order total: $42.99');
-
-      localizer.setLanguage('fr');
-      expect(localizer.translate('greeting', { name: 'John' })).toBe('Bonjour, John !');
-      expect(localizer.translate('order_total', { total: '$42.99' })).toBe('Total de la commande : $42.99');
     });
 
-    it('should handle missing interpolation values', () => {
-      localizer.setLanguage('en');
-      expect(localizer.translate('greeting')).toBe('Hello, ${name}!');
+    it('should translate a simple key', () => {
+      expect(_t('greeting')).toBe('Hello');
     });
 
-    it('should support custom interpolation delimiters', () => {
+    it('should handle interpolation', () => {
+      expect(_t('welcome', { name: 'John' })).toBe('Welcome, John!');
+    });
+
+    it('should handle pluralization', () => {
+      expect(_t('items', { count: 1 })).toBe('You have 1 item.');
+      expect(_t('items', { count: 5 })).toBe('You have 5 items.');
+    });
+
+    it('should handle nested keys', () => {
+      expect(_t('nested.key')).toBe('Nested key');
+    });
+
+    it('should fall back to the key if translation is not found', () => {
+      expect(_t('missing.key')).toBe('missing.key');
+    });
+
+    it('should allow overriding the language', () => {
+      expect(_t('greeting', { language: 'fr' })).toBe('Bonjour');
+    });
+  });
+
+  describe('getAvailableLanguages', () => {
+    it('should return an array of available languages', () => {
+      localizer.loadTranslations('en', { 'greeting': 'Hello' });
+      localizer.loadTranslations('fr', { 'greeting': 'Bonjour' });
+      localizer.loadTranslations('de', { 'greeting': 'Hallo' });
+
+      const languages = localizer.getAvailableLanguages();
+      expect(languages).toContain('en');
+      expect(languages).toContain('fr');
+      expect(languages).toContain('de');
+      expect(languages.length).toBe(3);
+    });
+  });
+
+  describe('custom options', () => {
+    it('should allow custom interpolation delimiters', () => {
       const customLocalizer = new Localizer({
         interpolationStart: '{{',
         interpolationEnd: '}}'
       });
 
       customLocalizer.loadTranslations('en', {
-        'custom_greeting': 'Hello, {{name}}!'
+        'welcome': 'Welcome, {{name}}!'
       });
 
-      expect(customLocalizer.translate('custom_greeting', { name: 'John' })).toBe('Hello, John!');
+      customLocalizer.setLanguage('en');
+      expect(customLocalizer.translate('welcome', { name: 'John' })).toBe('Welcome, John!');
     });
-  });
 
-  describe('Pluralization', () => {
-    it('should handle pluralization based on count', () => {
-      localizer.setLanguage('en');
-      expect(localizer.translate('items', { count: 0 })).toBe('No items');
-      expect(localizer.translate('items', { count: 1 })).toBe('One item');
-      expect(localizer.translate('items', { count: 5 })).toBe('5 items');
-
-      localizer.setLanguage('fr');
-      expect(localizer.translate('items', { count: 0 })).toBe('Aucun élément');
-      expect(localizer.translate('items', { count: 1 })).toBe('Un élément');
-      expect(localizer.translate('items', { count: 5 })).toBe('5 éléments');
-    });
-  });
-
-  describe('Default instance and _t function', () => {
-    it('should provide a working default instance', () => {
-      // Reset the default localizer
-      defaultLocalizer.loadTranslations('en', {
-        'test': 'Test'
+    it('should allow custom default and fallback languages', () => {
+      const customLocalizer = new Localizer({
+        defaultLanguage: 'fr',
+        fallbackLanguage: 'fr'
       });
-      defaultLocalizer.setLanguage('en');
-      
-      expect(_t('test')).toBe('Test');
+
+      customLocalizer.loadTranslations('fr', {
+        'greeting': 'Bonjour'
+      });
+
+      expect(customLocalizer.getLanguage()).toBe('fr');
+      expect(customLocalizer.translate('greeting')).toBe('Bonjour');
     });
   });
 });

@@ -3,12 +3,15 @@ node_modules/
 .pnp
 .pnp.js
 
-# Build outputs
+# Build output
 dist/
 build/
 lib/
+out/
+*.tsbuildinfo
+
+# Testing
 coverage/
-.nyc_output/
 
 # Logs
 logs
