@@ -32,6 +32,7 @@ const DEFAULT_OPTIONS: LocalizerOptions = {
 class Localizer {
   private options: Required<LocalizerOptions>;
   private currentLanguage: string;
+  private observer: MutationObserver | null = null;
   
   constructor(options: LocalizerOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options } as Required<LocalizerOptions>;
@@ -145,9 +146,9 @@ class Localizer {
     if (options.count !== undefined) {
       const pluralKey = `${key}_${options.count === 1 ? 'one' : 'other'}`;
       const pluralTranslation = translations[pluralKey] || 
-                               (language !== this.options.fallbackLanguage ? 
-                                 this.options.translations[this.options.fallbackLanguage]?.[pluralKey] : 
-                                 undefined);
+                              (language !== this.options.fallbackLanguage ? 
+                                this.options.translations[this.options.fallbackLanguage]?.[pluralKey] : 
+                                undefined);
       
       if (pluralTranslation) {
         translation = pluralTranslation;
@@ -189,9 +190,208 @@ class Localizer {
       }
       
       const translations = await response.json();
-      this.loadTranslations(language, translations);
+      this.loadTranslations(language, this.flattenObject(translations));
     } catch (error) {
       console.error(`Error loading translations for '${language}':`, error);
+    }
+  }
+
+  /**
+   * Flatten a nested object into a flat object with dot notation keys
+   * @param obj The object to flatten
+   * @param prefix The prefix to use for keys
+   * @returns The flattened object
+   */
+  private flattenObject(obj: Record<string, any>, prefix: string = ''): Record<string, string> {
+    return Object.keys(obj).reduce((acc: Record<string, string>, key: string) => {
+      const prefixedKey = prefix ? `${prefix}.${key}` : key;
+      
+      if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+        Object.assign(acc, this.flattenObject(obj[key], prefixedKey));
+      } else {
+        acc[prefixedKey] = obj[key];
+      }
+      
+      return acc;
+    }, {});
+  }
+
+  /**
+   * Translate all elements with i18n attributes in the document or container
+   * @param container Optional container element (defaults to document.body)
+   */
+  public translateDOM(container?: HTMLElement): void {
+    if (typeof document === 'undefined') return; // Skip in non-browser environments
+    
+    const root = container || document.body;
+    
+    // Translate elements with data-i18n attribute
+    this.translateElementsByAttribute(root.querySelectorAll('[data-i18n]'), 'data-i18n', 'textContent');
+    
+    // Translate elements with data-i18n-placeholder attribute
+    this.translateElementsByAttribute(root.querySelectorAll('[data-i18n-placeholder]'), 'data-i18n-placeholder', 'placeholder');
+    
+    // Translate elements with data-i18n-title attribute
+    this.translateElementsByAttribute(root.querySelectorAll('[data-i18n-title]'), 'data-i18n-title', 'title');
+    
+    // Translate elements with data-i18n-html attribute
+    this.translateElementsByAttribute(root.querySelectorAll('[data-i18n-html]'), 'data-i18n-html', 'innerHTML');
+    
+    // Handle elements with data-i18n-params attribute
+    root.querySelectorAll('[data-i18n-params]').forEach(element => {
+      const key = element.getAttribute('data-i18n');
+      if (!key) return;
+      
+      try {
+        const paramsAttr = element.getAttribute('data-i18n-params');
+        if (!paramsAttr) return;
+        
+        const params = JSON.parse(paramsAttr);
+        element.textContent = this.translate(key, params);
+      } catch (error) {
+        console.error(`Error parsing data-i18n-params for key ${key}:`, error);
+      }
+    });
+  }
+  
+  /**
+   * Translate elements by attribute
+   * @private
+   */
+  private translateElementsByAttribute(
+    elements: NodeListOf<Element>, 
+    attribute: string, 
+    property: string
+  ): void {
+    elements.forEach(element => {
+      const key = element.getAttribute(attribute);
+      if (!key) return;
+      
+      // @ts-ignore - Property may not exist on all elements
+      element[property] = this.translate(key);
+    });
+  }
+
+  /**
+   * Translate a specific container
+   * @param container The container element to translate
+   */
+  public translateContainer(container: HTMLElement): void {
+    this.translateDOM(container);
+  }
+  
+  /**
+   * Set up a MutationObserver to automatically translate new elements
+   * @param rootElement The root element to observe (defaults to document.body)
+   * @returns A function to stop observing
+   */
+  public observeDOM(rootElement?: HTMLElement): () => void {
+    if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') {
+      return () => {}; // Skip in non-browser environments
+    }
+    
+    const root = rootElement || document.body;
+    
+    // Disconnect any existing observer
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+    
+    this.observer = new MutationObserver((mutations) => {
+      let shouldTranslate = false;
+      
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList' && mutation.addedNodes.length) {
+          mutation.addedNodes.forEach(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Check if the node or any of its children have data-i18n attributes
+              const element = node as HTMLElement;
+              if (
+                element.hasAttribute && (
+                  element.hasAttribute('data-i18n') ||
+                  element.hasAttribute('data-i18n-placeholder') ||
+                  element.hasAttribute('data-i18n-title') ||
+                  element.hasAttribute('data-i18n-html') ||
+                  element.hasAttribute('data-i18n-params') ||
+                  element.querySelector('[data-i18n], [data-i18n-placeholder], [data-i18n-title], [data-i18n-html], [data-i18n-params]')
+                )
+              ) {
+                shouldTranslate = true;
+              }
+            }
+          });
+        }
+      });
+      
+      if (shouldTranslate) {
+        this.translateDOM(root);
+      }
+    });
+    
+    this.observer.observe(root, {
+      childList: true,
+      subtree: true
+    });
+    
+    return () => {
+      if (this.observer) {
+        this.observer.disconnect();
+        this.observer = null;
+      }
+    };
+  }
+  
+  /**
+   * Stop observing DOM changes
+   */
+  public stopObservingDOM(): void {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+  }
+  
+  /**
+   * Apply RTL direction to the document
+   * @param documentElement The document element (defaults to document.documentElement)
+   * @param bodyElement The body element (defaults to document.body)
+   */
+  public applyRTLToDocument(
+    documentElement?: HTMLElement,
+    bodyElement?: HTMLElement
+  ): void {
+    if (typeof document === 'undefined') return; // Skip in non-browser environments
+    
+    const docElement = documentElement || document.documentElement as HTMLElement;
+    const body = bodyElement || document.body;
+    
+    const isRTL = this.isRTL();
+    
+    // Set the dir attribute on the html element
+    docElement.dir = isRTL ? 'rtl' : 'ltr';
+    
+    // Add or remove RTL class to the body
+    if (isRTL) {
+      body.classList.add('rtl');
+      
+      // Add RTL stylesheet if it's not already added
+      if (typeof document !== 'undefined' && !document.getElementById('rtl-stylesheet')) {
+        const rtlStylesheet = document.createElement('link');
+        rtlStylesheet.id = 'rtl-stylesheet';
+        rtlStylesheet.rel = 'stylesheet';
+        rtlStylesheet.href = '/css/rtl.css';
+        document.head.appendChild(rtlStylesheet);
+      }
+    } else {
+      body.classList.remove('rtl');
+      
+      // Remove RTL stylesheet if it exists
+      if (typeof document !== 'undefined') {
+        const rtlStylesheet = document.getElementById('rtl-stylesheet');
+        if (rtlStylesheet) {
+          rtlStylesheet.remove();
+        }
+      }
     }
   }
 }
