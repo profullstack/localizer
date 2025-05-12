@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/localizer",
-  "version": "0.6.14",
+  "version": "0.6.15",
   "description": "Simple localization and internationalization library with RTL support",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
