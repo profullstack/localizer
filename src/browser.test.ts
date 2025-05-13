@@ -1,12 +1,11 @@
-
 /**
- * Core functionality tests for the @profullstack/localizer package
+ * Browser-specific tests for the @profullstack/localizer package
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { localizer, _t, Localizer } from './index';
+import { localizer, Localizer } from './index';
 
-// Mock browser globals when needed
+// Mock browser globals
 const mockDocument = () => {
   const elements: Record<string, any> = {};
   const mockElement = (tag: string) => ({
@@ -21,7 +20,7 @@ const mockDocument = () => {
       remove: vi.fn(),
       contains: vi.fn((cls) => false)
     },
-    querySelectorAll: vi.fn(() => []),
+    querySelectorAll: vi.fn(() => createNodeList([])),
     textContent: '',
     innerHTML: '',
     placeholder: '',
@@ -29,6 +28,16 @@ const mockDocument = () => {
     dir: '',
     remove: vi.fn()
   });
+
+  // Create a NodeListOf-like object
+  const createNodeList = (elements: any[]): NodeListOf<Element> => {
+    const nodeList = elements as unknown as NodeListOf<Element>;
+    // Add required properties of NodeListOf
+    Object.defineProperty(nodeList, 'item', {
+      value: (index: number) => elements[index] || null
+    });
+    return nodeList;
+  };
 
   return {
     documentElement: mockElement('html'),
@@ -38,7 +47,7 @@ const mockDocument = () => {
     head: {
       appendChild: vi.fn()
     },
-    querySelectorAll: vi.fn(() => [])
+    querySelectorAll: vi.fn(() => createNodeList([]))
   };
 };
 
@@ -51,7 +60,17 @@ const mockFetch = (data: any, ok = true) => {
   });
 };
 
-describe('Localizer', () => {
+// Helper function to create NodeList-like objects
+const createNodeList = (elements: any[]): NodeListOf<Element> => {
+  const nodeList = elements as unknown as NodeListOf<Element>;
+  // Add required properties of NodeListOf
+  Object.defineProperty(nodeList, 'item', {
+    value: (index: number) => elements[index] || null
+  });
+  return nodeList;
+};
+
+describe('Localizer Browser Features', () => {
   // Reset localizer before each test
   beforeEach(() => {
     // Create a new instance to reset state
@@ -62,229 +81,7 @@ describe('Localizer', () => {
     vi.resetAllMocks();
   });
 
-  describe('loadTranslations', () => {
-    it('should load translations for a language', () => {
-      localizer.loadTranslations('en', {
-        'greeting': 'Hello',
-        'farewell': 'Goodbye'
-      });
-
-      expect(localizer.getAvailableLanguages()).toContain('en');
-      expect(_t('greeting')).toBe('Hello');
-    });
-
-    it('should merge translations for the same language', () => {
-      localizer.loadTranslations('en', { 'greeting': 'Hello' });
-      localizer.loadTranslations('en', { 'farewell': 'Goodbye' });
-
-      expect(_t('greeting')).toBe('Hello');
-      expect(_t('farewell')).toBe('Goodbye');
-    });
-
-    it('should override existing translations for the same key', () => {
-      localizer.loadTranslations('en', { 'greeting': 'Hello' });
-      localizer.loadTranslations('en', { 'greeting': 'Hi' });
-
-      expect(_t('greeting')).toBe('Hi');
-    });
-  });
-
-  describe('setLanguage', () => {
-    beforeEach(() => {
-      localizer.loadTranslations('en', {
-        'greeting': 'Hello',
-        'farewell': 'Goodbye'
-      });
-      
-      localizer.loadTranslations('fr', {
-        'greeting': 'Bonjour',
-        'farewell': 'Au revoir'
-      });
-    });
-
-    it('should set the current language', () => {
-      localizer.setLanguage('fr');
-      expect(localizer.getLanguage()).toBe('fr');
-      expect(_t('greeting')).toBe('Bonjour');
-    });
-
-    it('should use fallback language if the language is not available', () => {
-      localizer.setLanguage('de');
-      expect(localizer.getLanguage()).toBe('en'); // Default fallback
-      expect(_t('greeting')).toBe('Hello');
-    });
-    
-    it('should dispatch a language-changed event in browser environment', () => {
-      // Mock window
-      const originalWindow = global.window;
-      const dispatchEventMock = vi.fn();
-      
-      // @ts-ignore - Mocking window
-      global.window = {
-        dispatchEvent: dispatchEventMock
-      };
-      
-      localizer.setLanguage('fr');
-      
-      expect(dispatchEventMock).toHaveBeenCalledTimes(1);
-      expect(dispatchEventMock.mock.calls[0][0].type).toBe('language-changed');
-      expect(dispatchEventMock.mock.calls[0][0].detail).toEqual({
-        language: 'fr',
-        previousLanguage: 'en',
-        isRTL: false
-      });
-      
-      // Restore window
-      global.window = originalWindow;
-    });
-  });
-
-  describe('translate', () => {
-    beforeEach(() => {
-      // Create a new instance to reset state
-      const newLocalizer = new Localizer();
-      Object.assign(localizer, newLocalizer);
-      
-      localizer.loadTranslations('en', {
-        'greeting': 'Hello',
-        'welcome': 'Welcome, ${name}!',
-        'items_one': 'You have ${count} item.',
-        'items_other': 'You have ${count} items.',
-        'nested.key': 'Nested key'
-      });
-      
-      localizer.loadTranslations('fr', {
-        'greeting': 'Bonjour',
-        'welcome': 'Bienvenue, ${name}!',
-        'items_one': 'Vous avez ${count} article.',
-        'items_other': 'Vous avez ${count} articles.',
-        'nested.key': 'Clé imbriquée'
-      });
-      
-      localizer.setLanguage('en');
-    });
-
-    it('should translate a simple key', () => {
-      expect(_t('greeting')).toBe('Hello');
-    });
-
-    it('should handle interpolation', () => {
-      expect(_t('welcome', { name: 'John' })).toBe('Welcome, John!');
-    });
-
-    it('should handle pluralization', () => {
-      // We need to explicitly load the 'items' key for pluralization to work
-      localizer.loadTranslations('en', {
-        'items': 'Items', // Base key
-        'items_one': 'You have ${count} item.',
-        'items_other': 'You have ${count} items.'
-      });
-      
-      expect(_t('items', { count: 1 })).toBe('You have 1 item.');
-      expect(_t('items', { count: 5 })).toBe('You have 5 items.');
-    });
-
-    it('should handle nested keys', () => {
-      expect(_t('nested.key')).toBe('Nested key');
-    });
-
-    it('should fall back to the key if translation is not found', () => {
-      expect(_t('missing.key')).toBe('missing.key');
-    });
-
-    it('should allow overriding the language', () => {
-      expect(_t('greeting', { language: 'fr' })).toBe('Bonjour');
-    });
-    
-    it('should handle missing translations in current language but present in fallback', () => {
-      localizer.loadTranslations('de', {
-        // Partial translations
-        'greeting': 'Hallo'
-        // 'welcome' is missing
-      });
-      
-      localizer.setLanguage('de');
-      
-      // Should use the German translation for 'greeting'
-      expect(_t('greeting')).toBe('Hallo');
-      
-      // Should fall back to English for 'welcome'
-      expect(_t('welcome', { name: 'John' })).toBe('Welcome, John!');
-    });
-    
-    it('should handle pluralization with fallback language', () => {
-      localizer.loadTranslations('de', {
-        'items_one': 'Sie haben ${count} Artikel.'
-        // 'items_other' is missing
-      });
-      
-      localizer.setLanguage('de');
-      
-      // Should use German for singular
-      expect(_t('items', { count: 1 })).toBe('Sie haben 1 Artikel.');
-      
-      // Should fall back to English for plural
-      expect(_t('items', { count: 5 })).toBe('You have 5 items.');
-    });
-  });
-
-  describe('getAvailableLanguages', () => {
-    it('should return an array of available languages', () => {
-      localizer.loadTranslations('en', { 'greeting': 'Hello' });
-      localizer.loadTranslations('fr', { 'greeting': 'Bonjour' });
-      localizer.loadTranslations('de', { 'greeting': 'Hallo' });
-
-      const languages = localizer.getAvailableLanguages();
-      expect(languages).toContain('en');
-      expect(languages).toContain('fr');
-      expect(languages).toContain('de');
-      expect(languages.length).toBe(3);
-    });
-  });
-
-  describe('custom options', () => {
-    it('should allow custom interpolation delimiters', () => {
-      const customLocalizer = new Localizer({
-        interpolationStart: '{{',
-        interpolationEnd: '}}'
-      });
-
-      customLocalizer.loadTranslations('en', {
-        'welcome': 'Welcome, {{name}}!'
-      });
-
-      customLocalizer.setLanguage('en');
-      expect(customLocalizer.translate('welcome', { name: 'John' })).toBe('Welcome, John!');
-    });
-
-    it('should allow custom default and fallback languages', () => {
-      const customLocalizer = new Localizer({
-        defaultLanguage: 'fr',
-        fallbackLanguage: 'fr'
-      });
-
-      customLocalizer.loadTranslations('fr', {
-        'greeting': 'Bonjour'
-      });
-
-      expect(customLocalizer.getLanguage()).toBe('fr');
-      expect(customLocalizer.translate('greeting')).toBe('Bonjour');
-    });
-    
-    it('should allow custom RTL languages', () => {
-      const customLocalizer = new Localizer({
-        rtlLanguages: ['ar', 'he', 'custom_rtl']
-      });
-      
-      // Load translations for custom_rtl to ensure it's recognized
-      customLocalizer.loadTranslations('custom_rtl', { 'test': 'Test' });
-      
-      customLocalizer.setLanguage('custom_rtl');
-      expect(customLocalizer.isRTL()).toBe(true);
-    });
-  });
-  
-  // New tests for RTL functionality
+  // Tests for RTL functionality
   describe('RTL support', () => {
     it('should correctly identify RTL languages', () => {
       // Default RTL languages are ['ar', 'he', 'fa', 'ur']
@@ -303,7 +100,7 @@ describe('Localizer', () => {
       });
       Object.assign(localizer, newLocalizer);
       
-      // Load translations for both languages to ensure they're recognized
+      // Load some translations for both languages to ensure they're recognized
       localizer.loadTranslations('en', { 'test': 'Test' });
       localizer.loadTranslations('ar', { 'test': 'اختبار' });
       
@@ -335,6 +132,7 @@ describe('Localizer', () => {
       expect(document.body.classList.add).toHaveBeenCalledWith('rtl');
       
       // Restore document
+      // @ts-ignore - Restore document
       global.document = originalDocument;
     });
     
@@ -355,6 +153,7 @@ describe('Localizer', () => {
       expect(document.head.appendChild).toHaveBeenCalled();
       
       // Restore document
+      // @ts-ignore - Restore document
       global.document = originalDocument;
     });
     
@@ -379,6 +178,7 @@ describe('Localizer', () => {
       expect(mockStylesheet.remove).toHaveBeenCalled();
       
       // Restore document
+      // @ts-ignore - Restore document
       global.document = originalDocument;
     });
   });
@@ -432,16 +232,6 @@ describe('Localizer', () => {
       localizer.setLanguage('en');
       
       // Mock querySelectorAll to return our mock elements
-      // Create a NodeListOf-like object
-      const createNodeList = (elements: any[]): NodeListOf<Element> => {
-        const nodeList = elements as unknown as NodeListOf<Element>;
-        // Add required properties of NodeListOf
-        Object.defineProperty(nodeList, 'item', {
-          value: (index: number) => elements[index] || null
-        });
-        return nodeList;
-      };
-      
       document.querySelectorAll = vi.fn((selector) => {
         if (selector === '[data-i18n]') return createNodeList([mockElements[0]]);
         if (selector === '[data-i18n-placeholder]') return createNodeList([mockElements[1]]);
@@ -541,8 +331,8 @@ describe('Localizer', () => {
     it('should translate a specific container', () => {
       const container = {
         querySelectorAll: vi.fn((selector) => {
-          if (selector === '[data-i18n]') return [mockElements[0]];
-          return [];
+          if (selector === '[data-i18n]') return createNodeList([mockElements[0]]);
+          return createNodeList([]);
         })
       };
       
@@ -580,16 +370,6 @@ describe('Localizer', () => {
           return null;
         }),
         textContent: ''
-      };
-      
-      // Create a NodeListOf-like object
-      const createNodeList = (elements: any[]): NodeListOf<Element> => {
-        const nodeList = elements as unknown as NodeListOf<Element>;
-        // Add required properties of NodeListOf
-        Object.defineProperty(nodeList, 'item', {
-          value: (index: number) => elements[index] || null
-        });
-        return nodeList;
       };
       
       document.querySelectorAll = vi.fn((selector) => {
@@ -793,63 +573,6 @@ describe('Localizer', () => {
       
       // Restore console.error
       console.error = originalConsoleError;
-    });
-  });
-  
-  // Tests for flattenObject
-  describe('flattenObject', () => {
-    it('should flatten nested objects', () => {
-      // Create a new instance to access private method
-      const instance = new Localizer();
-      
-      // @ts-ignore - Accessing private method for testing
-      const flattened = instance['flattenObject']({
-        greeting: 'Hello',
-        user: {
-          name: 'John',
-          profile: {
-            age: 30,
-            location: 'New York'
-          }
-        },
-        items: ['apple', 'banana']
-      });
-      
-      expect(flattened).toEqual({
-        'greeting': 'Hello',
-        'user.name': 'John',
-        'user.profile.age': 30,
-        'user.profile.location': 'New York',
-        'items': ['apple', 'banana']
-      });
-    });
-    
-    it('should handle empty objects', () => {
-      // Create a new instance to access private method
-      const instance = new Localizer();
-      
-      // @ts-ignore - Accessing private method for testing
-      const flattened = instance['flattenObject']({});
-      
-      expect(flattened).toEqual({});
-    });
-    
-    it('should handle null values', () => {
-      // Create a new instance to access private method
-      const instance = new Localizer();
-      
-      // @ts-ignore - Accessing private method for testing
-      const flattened = instance['flattenObject']({
-        nullValue: null,
-        undefinedValue: undefined,
-        validValue: 'test'
-      });
-      
-      expect(flattened).toEqual({
-        'nullValue': null,
-        'undefinedValue': undefined,
-        'validValue': 'test'
-      });
     });
   });
 });
